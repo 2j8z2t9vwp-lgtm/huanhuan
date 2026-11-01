@@ -27,7 +27,14 @@ def main():
         manifest = json.loads((store.DATA / 'frames-check/frames.json').read_text('utf-8'))
         assert manifest['frames']
         for server in ('douyin-mcp', 'douyin-analyzer', 'viralvision-mcp', 'promo-workflow-mcp'):
-            assert runtime.mcp_request(server)['ok'], server
+            print('Checking bundled MCP: ' + server, flush=True)
+            try:
+                assert runtime.mcp_request(server)['ok'], server
+            except Exception:
+                log = store.DATA / 'integrations.log'
+                if log.exists():
+                    print(log.read_text('utf-8', errors='replace')[-12000:], file=sys.stderr, flush=True)
+                raise
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             assert Path(p.chromium.executable_path).is_file()
