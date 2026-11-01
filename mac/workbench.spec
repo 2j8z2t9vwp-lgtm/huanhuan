@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 
 root = Path(SPECPATH).parent
 stage = root / 'build/mac-assets'
-datas = [(str(root / name), name) for name in ('static', 'vendor', 'app')]
+datas = [(str(root / name), name) for name in ('static', 'app')]
 datas += [(str(stage / 'models'), 'models')]
 datas += [(str(root / 'THIRD_PARTY_NOTICES.md'), '.')]
 # Analyze at original locations so loader-relative dylib paths still resolve.

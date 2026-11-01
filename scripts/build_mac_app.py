@@ -50,6 +50,10 @@ def main():
     # Preserve Chromium's nested .app/framework symlinks and original structure.
     # PyInstaller's binary rewriting/signing cannot flatten this third-party app.
     shutil.copytree(stage / 'browsers', app / 'Contents/Resources/browsers', symlinks=True)
+    # npm workspace links are relative to their original package tree.
+    # Keep them intact instead of letting the freezer relocate their targets.
+    shutil.copytree(ROOT / 'vendor', app / 'Contents/Resources/vendor', symlinks=True,
+                    ignore=shutil.ignore_patterns('__pycache__', '.git', '*.pyc'))
     run('codesign', '--force', '--deep', '--sign', '-', app)
     executable = app / 'Contents/MacOS/欢欢工作台'
     with tempfile.TemporaryDirectory(prefix='huanhuan-bundle-check-') as folder:
