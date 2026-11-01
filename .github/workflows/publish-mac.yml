@@ -1,0 +1,49 @@
+name: Publish verified Mac installers
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41301799056
+          pattern: huanhuan-mac-*
+          merge-multiple: true
+          path: installers
+      - name: Name installers and record checksums
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          folder = Path('installers')
+          for suffix, label in (('arm64', 'AppleSilicon'), ('x86_64', 'Intel')):
+              source, = folder.glob('*-' + suffix + '.dmg')
+              source.rename(folder / ('Huanhuan-Workbench-Mac-' + label + '.dmg'))
+          rows = []
+          for path in sorted(folder.glob('*.dmg')):
+              rows.append(hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() + '  ' + path.name)
+          (folder / 'SHA256SUMS.txt').write_text('\n'.join(rows) + '\n')
+          PY
+      - name: Publish public download links
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > notes.md <<'EOF'
+          全功能欢欢工作台 Mac 桌面版。内置运行环境、视频工具、浏览器和默认语音模型，无需自行安装 Python / Homebrew / Node.js。
+
+          Apple M 系列下载 AppleSilicon；Intel 芯片下载 Intel。打开 DMG，将应用拖入“应用程序”，双击启动，首次在设置填写自己的 AI Key。
+
+          两种架构均已在 macOS 15 云端通过后台组件及原生窗口检查。付费 AI 和真实平台链接仍需使用者自行配置和验证。
+
+          应用未经过 Apple Developer ID 签名和公证；首次如被拦截，可在系统设置 → 隐私与安全性中按系统提示允许本次打开。不要关闭系统安全保护。
+
+          不包含用户数据、Cookie 或 API Key。SHA256SUMS.txt 提供安装包校验值。
+          EOF
+          gh release create v1.0.0 installers/*.dmg installers/SHA256SUMS.txt --target 0011502024e04e0e7ec7a2609582acdf3f8a236e --title '欢欢工作台 Mac 1.0.0' --notes-file notes.md
