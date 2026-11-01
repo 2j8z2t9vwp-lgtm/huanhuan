@@ -1,0 +1,3 @@
+-r requirements.txt
+keyring>=25.6,<26; sys_platform == "darwin"
+cryptography>=44,<47; sys_platform == "darwin"

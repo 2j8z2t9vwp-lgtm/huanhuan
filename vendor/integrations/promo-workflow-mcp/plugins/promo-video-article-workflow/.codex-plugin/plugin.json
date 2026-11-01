@@ -1,0 +1,23 @@
+{
+  "name": "promo-video-article-workflow",
+  "version": "0.2.0",
+  "description": "Required Promo Workflow MCP and driver Skill for managed video or article campaigns.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "\u89c6\u9891/\u63a8\u6587\u5ba3\u53d1\u5de5\u4f5c\u6d41",
+    "shortDescription": "\u5ba3\u4f20\u6d41\u7a0b MCP \u4e0e\u552f\u4e00\u5165\u53e3 Skill\u3002",
+    "longDescription": "\u5b89\u88c5\u672c\u5305\u4f1a\u542f\u7528 promo_workflow MCP \u548c\u89c6\u9891/\u63a8\u6587\u5ba3\u53d1\u6d41\u7a0b\u5165\u53e3\u3002\u6784\u5efa\u540e\u8fd0\u884c npm run setup \u4f1a\u4fdd\u5b58\u672c\u673a\u8def\u5f84\uff1b\u6587\u7ae0\u3001\u89c6\u9891\u524d\u671f\u4e0e\u5236\u4f5c\u540e\u7aef\u5747\u7531\u72ec\u7acb\u6269\u5c55\u5305\u6309\u9700\u52a0\u5165\u3002",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Promotion workflow MCP",
+      "Video and article workflow driver",
+      "Versioned state and human review gates"
+    ],
+    "defaultPrompt": "\u4e3a\u4e00\u4e2a\u4ea7\u54c1\u89c6\u9891\u6216\u516c\u4f17\u53f7\u63a8\u6587\u521b\u5efa\u5ba3\u4f20\u5de5\u4f5c\u6d41\uff0c\u5e76\u5c55\u793a\u5f53\u524d\u8282\u70b9\u3002"
+  },
+  "mcpServers": "./.mcp.json"
+}

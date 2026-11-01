@@ -1,0 +1,119 @@
+import type { WorkflowState } from "@promo-workflow/contracts";
+import type { AgentWorkCapsule } from "./agent-work.js";
+import type { ArtifactRef } from "./artifacts/types.js";
+import type { BaselineProposal } from "./baseline.js";
+import type { WorkspaceDeliverableRef } from "./workspace-deliverables.js";
+import type { WorkspaceScope } from "./workspace-scope.js";
+import type { TopicFetchBrief, TopicMatchRun } from "./selection/types.js";
+
+export type WorkflowCarrier = "video" | "article";
+
+export type WorkflowEventKind =
+  | "workflow_created"
+  | "workspace_confirmed"
+  | "workspace_progress_audited"
+  | "workspace_start_position_confirmed"
+  | "workspace_grill_answered"
+  | "fetched_topics_submitted"
+  | "automatic_step"
+  | "topic_selected"
+  | "baseline_proposed"
+  | "baseline_grill_answered"
+  | "baseline_locked"
+  | "creative_routes_proposed"
+  | "creative_route_selected"
+  | "outline_draft_submitted"
+  | "outline_grill_answered"
+  | "outline_locked"
+  | "master_draft_submitted"
+  | "manuscript_preview_rendered"
+  | "master_grill_answered"
+  | "master_locked"
+  | "requirements_detailed"
+  | "annotation_saved"
+  | "annotation_replied"
+  | "human_review_requested"
+  | "human_review_approved"
+  | "human_revision_requested"
+  | "human_review_rejected"
+  | "competition_report_submitted"
+  | "production_units_updated"
+  | "production_locked"
+  | "release_package_submitted"
+  | "release_locked"
+  | "workflow_rolled_back"
+  | "workflow_restored"
+  | "note_saved";
+
+export interface WorkflowEvent {
+  id: string;
+  kind: WorkflowEventKind;
+  state: WorkflowState;
+  revision: number;
+  at: string;
+  summary: string;
+}
+
+export interface WorkflowRecord {
+  videoProduction?: import('./video-production.js').VideoProductionState;
+  videoReview?: import("@promo-workflow/contracts").VideoReviewState;
+  textFeedback?: import("./text-feedback.js").TextFeedback;
+  feedbackIdempotency?: Record<string, string>;
+  id: string;
+  carrier: WorkflowCarrier;
+  /** Stable agent-written name used in the workbench; progress lives in summary. */
+  displayName?: string | undefined;
+  /** Canonical project root used with carrier as the reusable workflow key. */
+  rootDirectory?: string | undefined;
+  state: WorkflowState;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  summary: string;
+  context: Record<string, unknown>;
+  events: WorkflowEvent[];
+  idempotency: Record<string, WorkflowSnapshot>;
+}
+
+export interface PendingAction {
+  id: string;
+  kind: "run" | "commit" | "agent_work" | "human_review";
+  instruction: string;
+}
+
+export interface WorkflowSnapshot {
+  videoProduction?: import('./video-production.js').VideoProductionState;
+  videoReview?: import("@promo-workflow/contracts").VideoReviewState;
+  projectionPending?: string;
+  reviewFeedback?: ReturnType<typeof import("./text-feedback.js").feedbackSnapshot>;
+  editorialContext?: { requirements: unknown; requirementsHash: string; hashAlgorithm: string; instruction: string };
+  workflowId: string;
+  carrier: WorkflowCarrier;
+  displayName: string;
+  rootDirectory: string;
+  /** True when create_workflow returned the existing root + carrier workflow. */
+  reused?: boolean | undefined;
+  state: WorkflowState;
+  revision: number;
+  updatedAt: string;
+  summary: string;
+  workspace?: WorkspaceScope | undefined;
+  agentWork?: AgentWorkCapsule | undefined;
+  fetchBrief?: TopicFetchBrief | undefined;
+  topicMatch?: TopicMatchRun | undefined;
+  baselineProposal?: BaselineProposal | undefined;
+  baselineGrillCount?: number | undefined;
+  deliverables: readonly WorkspaceDeliverableRef[];
+  status: {
+    node: number;
+    label: string;
+    userFacingState: string;
+  };
+  artifactRefs: ArtifactRef[];
+  pendingAction: PendingAction | null;
+}
+
+export interface WorkflowStoreData {
+  schemaVersion: 1;
+  workflows: Record<string, WorkflowRecord>;
+}

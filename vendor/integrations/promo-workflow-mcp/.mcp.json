@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "promo_workflow": {
+      "command": "node",
+      "args": ["./packages/promo-mcp/dist/index.js"],
+      "cwd": ".",
+      "env": {
+        "PROMO_WORKFLOW_DATA_DIR": "data"
+      }
+    }
+  }
+}

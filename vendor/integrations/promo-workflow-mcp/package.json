@@ -1,0 +1,24 @@
+{
+  "name": "promo-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start": "npm run start --workspace=@promo-workflow/mcp-server",
+    "review": "npm run review --workspace=@promo-workflow/mcp-server",
+    "setup": "node scripts/setup-local.mjs workflow",
+    "setup:cut-workbench": "node scripts/setup-local.mjs cut-workbench"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.2"
+  }
+}

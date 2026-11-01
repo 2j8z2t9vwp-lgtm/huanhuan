@@ -1,0 +1,18 @@
+export function reviewUrlFor(baseUrl, workflowId) {
+    if (!baseUrl || !workflowId)
+        return baseUrl;
+    return `${baseUrl}/?workflowId=${encodeURIComponent(workflowId)}`;
+}
+export function workbenchFor(baseUrl, workflowId) {
+    const url = reviewUrlFor(baseUrl, workflowId);
+    return {
+        title: "Promo Workflow 工作台",
+        url: url ?? null,
+        workflowId: workflowId ?? null,
+        role: "正文只读，支持文字选区批注与版本对比；展示七节点、待办及人工审核点，批注不等于批准。",
+        agentAction: url
+            ? "在读取或推进工作流后，主动向用户展示此链接；宿主支持打开本地网页时，同时打开它。"
+            : "工作台未启动；调用 promo_review 获取明确的本机启动问题。",
+    };
+}
+//# sourceMappingURL=workbench.js.map

@@ -1,0 +1,27 @@
+name: Build full Mac desktop workbench
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build and validate the actual bundled executable
+        run: python scripts/build_mac_app.py
+      - name: Save DMG only after bundle smoke tests pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: huanhuan-mac-${{ matrix.runner }}
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14

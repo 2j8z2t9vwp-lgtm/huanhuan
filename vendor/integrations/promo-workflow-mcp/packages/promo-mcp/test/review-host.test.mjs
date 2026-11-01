@@ -1,0 +1,374 @@
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { createReviewHost } from "../dist/review-host.js";
+import { ArtifactStore } from "../../promo-service/dist/index.js";
+
+test("review host has a readable renderer for structured editorial checks", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-renderer-"));
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const page = await (await fetch(`http://127.0.0.1:${address.port}/review.js`)).text();
+    assert.match(page, /paragraph_contribution:'段落职责'/);
+    assert.match(page, /const status=\{clear:'通过',issue:'需修复',uncertain:'待确认'\}/);
+    assert.match(page, /function renderSourceCards\(cards\)/);
+    assert.match(page, /阅读原文 ↗/);
+    assert.match(page, /long_range_logic:'全文逻辑未闭合'/);
+    assert.match(page, /const cleanExcerpt = value/);
+    assert.match(page, /data-layout-export/);
+    assert.match(page, /function exportLayoutImage\(button\)/);
+    assert.match(page, /function renderCaptureProtocol\(protocol\)/);
+    assert.match(page, /素材怎么来/);
+    assert.match(page, /这次要录什么/);
+    assert.doesNotMatch(page, /JSON\.stringify\(item\.captureProtocol/);
+    assert.match(page, /function renderEditorialAudit\(audit\)/);
+    assert.match(page, /function renderDeliveryDesk\(review\)/);
+    assert.match(page, /function copyFeishuDraft\(button\)/);
+    assert.match(page, /下载 \.MD/);
+    assert.match(page, /复制飞书稿/);
+    assert.match(page, /本轮为什么这样判断/);
+    assert.match(page, /内部校验码已隐藏/);
+    assert.doesNotMatch(page, /JSON\.stringify\(review\.audit/);
+    assert.match(page, /data-layout-export="png"/);
+    assert.match(page, /data-layout-export="jpeg"/);
+    assert.match(page, /image\/jpeg/);
+    assert.match(page, /'jpg':'png'/);
+    assert.doesNotMatch(page, /这项信息已记录在制品中/);
+    assert.doesNotThrow(() => new Function(page), "the browser payload must remain valid JavaScript");
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host exports the current article as Markdown, HTML, and a Feishu clipboard payload", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-export-"));
+  const workflowId = "wf-export";
+  const artifacts = new ArtifactStore(join(dataDirectory, "artifacts"));
+  const master = await artifacts.write({
+    kind: "content_master",
+    content: { master: {
+      carrier: "article",
+      title: "一份可交付的推文",
+      alternativeTitles: [],
+      bodyMarkdown: "## 正文开始\n\n这段内容会进入两个出口。",
+      assetPlan: { sourceAssets: [], usages: [] },
+      assetPlacements: [],
+      primaryCallToAction: "继续了解产品。",
+    } },
+  });
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({ schemaVersion: 1, workflows: {
+    [workflowId]: { id: workflowId, carrier: "article", state: "MASTER_LOCKED", revision: 14, summary: "Ready to export.", events: [], context: { artifactRefs: [master] } },
+  } }));
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const markdownResponse = await fetch(`${origin}/api/workflows/${workflowId}/article-export/markdown`);
+    assert.equal(markdownResponse.status, 200);
+    assert.match(markdownResponse.headers.get("content-disposition"), /promo-r14\.md/);
+    assert.match(await markdownResponse.text(), /^# 一份可交付的推文/m);
+
+    const htmlResponse = await fetch(`${origin}/api/workflows/${workflowId}/article-export/html`);
+    assert.match(htmlResponse.headers.get("content-disposition"), /promo-r14\.html/);
+    assert.match(await htmlResponse.text(), /^<!doctype html>/i);
+
+    const feishu = await (await fetch(`${origin}/api/workflows/${workflowId}/article-export/feishu`)).json();
+    assert.equal(feishu.revision, 14);
+    assert.equal(feishu.sourceArtifactId, master.artifactId);
+    assert.match(feishu.html, /style="max-width:720px/);
+    assert.match(feishu.markdown, /继续了解产品/);
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host marks N4 complete after a locked master before N5 becomes current", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-locked-master-"));
+  const workflowId = "wf-locked-master";
+  const artifacts = new ArtifactStore(join(dataDirectory, "artifacts"));
+  const master = await artifacts.write({ kind: "content_master", content: { master: { bodyMarkdown: "正文" } } });
+  const review = await artifacts.write({ kind: "master_review", content: { review: { passed: true } } });
+  const render = await artifacts.write({ kind: "manuscript_render", content: { html: "<article class=\"promo-article\">正文</article>" }, parentArtifactIds: [master.artifactId] });
+  const requirements = await artifacts.write({ kind: "requirement_set", content: { requirements: [] } });
+  const materialPreview = await artifacts.write({ kind: "material_preview", content: { html: "<article class=\"promo-article\">正文</article>", stage: "planned" } });
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({ schemaVersion: 1, workflows: {
+    [workflowId]: { id: workflowId, carrier: "article", state: "REQUIREMENTS_READY", revision: 12, summary: "Requirements are ready.", updatedAt: "2026-09-09T00:00:00.000Z", events: [], context: { artifactRefs: [master, review, render, requirements, materialPreview] } },
+  } }));
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const payload = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+    assert.equal(payload.steps[3].state, "complete");
+    assert.equal(payload.steps[4].state, "current");
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host exposes only one workflow's projected longitudinal artifacts", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-host-"));
+  const workflowId = "wf-review";
+  const workspace = join(dataDirectory, "workspace", workflowId);
+  const selectionDirectory = join(workspace, "01-selection");
+  const campaignIntentDirectory = join(workspace, "02-campaign-intent");
+  await mkdir(selectionDirectory, { recursive: true });
+  await mkdir(campaignIntentDirectory, { recursive: true });
+  const selectedTopicPath = join(selectionDirectory, "selected-topic.json");
+  const baselineDraftPath = join(campaignIntentDirectory, "campaign-intent-draft.json");
+  await writeFile(selectedTopicPath, JSON.stringify({
+    content: { topic: { title: "A local-first agent workflow", source: "official source" } },
+  }));
+  await writeFile(baselineDraftPath, JSON.stringify({
+    content: {
+      coreMessage: "A visible draft can be reviewed before it is locked.",
+      guidanceIntent: "Choose the reader scene before locking the intent.",
+      campaignIntent: { audienceMoment: "A builder opens a fresh session." },
+    },
+  }));
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({
+    schemaVersion: 1,
+    workflows: {
+      [workflowId]: {
+        id: workflowId, carrier: "article", state: "AWAITING_HUMAN_REVIEW", revision: 9,
+        displayName: "本地 Agent 工作流推文", rootDirectory: "/projects/local-agent",
+        summary: "Ready for review.", updatedAt: "2026-09-03T00:00:00.000Z", events: [],
+      },
+    },
+  }));
+  await writeFile(join(workspace, "manifest.json"), JSON.stringify({
+    workflowId, carrier: "article", state: "AWAITING_HUMAN_REVIEW", revision: 9, summary: "Ready for review.",
+    deliverables: [
+      { artifactId: "artifact-selected", kind: "selected_topic", path: selectedTopicPath },
+      { artifactId: "artifact-baseline-draft", kind: "baseline_draft", path: baselineDraftPath },
+      { artifactId: "artifact-foreign", kind: "baseline", path: join(dataDirectory, "outside.json") },
+    ],
+  }));
+
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const list = await (await fetch(`${origin}/api/workflows`)).json();
+    assert.equal(list.length, 1);
+    assert.equal(list[0].workflowId, workflowId);
+    assert.equal(list[0].displayName, "本地 Agent 工作流推文");
+    assert.equal(list[0].rootDirectory, "/projects/local-agent");
+
+    const review = await (await fetch(`${origin}/api/workflows/${workflowId}`)).json();
+    assert.equal(review.steps[0].artifacts[0].kind, "selected_topic");
+    assert.equal(review.steps[0].artifacts[0].content.topic.title, "A local-first agent workflow");
+    assert.equal(review.steps[1].artifacts.length, 1);
+    assert.equal(review.steps[1].artifacts[0].kind, "baseline_draft");
+    assert.equal(review.steps[1].artifacts[0].content.coreMessage, "A visible draft can be reviewed before it is locked.");
+    assert.equal(review.workflow.progress.node, 5);
+    assert.equal(review.workflow.displayName, "本地 Agent 工作流推文");
+    assert.equal(review.steps[4].state, "current");
+
+    const controller = new AbortController();
+    const updates = await fetch(`${origin}/api/updates`, { signal: controller.signal });
+    const reader = updates.body.getReader();
+    const firstChunk = await reader.read();
+    assert.match(new TextDecoder().decode(firstChunk.value), /event: connected/);
+    await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({
+      schemaVersion: 1,
+      workflows: {
+        [workflowId]: {
+          id: workflowId, carrier: "article", state: "AWAITING_HUMAN_REVIEW", revision: 10,
+          summary: "Updated for the live view.", updatedAt: "2026-09-03T00:01:00.000Z", events: [],
+        },
+      },
+    }));
+    const changedChunk = await Promise.race([
+      reader.read(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("review host did not emit a workflow-change event")), 2000)),
+    ]);
+    assert.match(new TextDecoder().decode(changedChunk.value), /event: workflow-change/);
+    controller.abort();
+    reader.releaseLock();
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host exposes the current agent brief when a node has no draft artifact yet", async () => {
+  const cases = [
+    ["FETCHING", 1, "topic_fetch"],
+    ["ALIGNING_BASELINE", 2, "baseline_alignment"],
+    ["ALIGNING_OUTLINE", 3, "creative_outline"],
+    ["ALIGNING_MASTER", 4, "master_development"],
+    ["PRODUCING", 6, "production"],
+    ["PACKAGING", 7, "release_packaging"],
+  ];
+
+  for (const [state, node, stage] of cases) {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-brief-"));
+    const workflowId = `wf-${node}`;
+    const workspace = join(dataDirectory, "workspace", workflowId);
+    await mkdir(workspace, { recursive: true });
+    await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({
+      schemaVersion: 1,
+      workflows: {
+        [workflowId]: {
+          id: workflowId, carrier: "article", state, revision: node,
+          displayName: `Node ${node}`, rootDirectory: `/projects/node-${node}`,
+          summary: "Waiting for the agent deliverable.", updatedAt: "2026-09-05T00:00:00.000Z", events: [],
+          context: {
+            agentWork: {
+              taskId: `task-${node}`,
+              stage,
+              inputs: { lockedUpstream: `node-${node - 1}` },
+              constraints: ["Preserve the locked proposition."],
+              requestedOutput: { description: "Return the complete reviewable draft.", fields: ["draft", "review"] },
+              validationRules: ["Submit through the declared next commit."],
+              nextCommitKind: "submit_draft",
+            },
+          },
+        },
+      },
+    }));
+    await writeFile(join(workspace, "manifest.json"), JSON.stringify({
+      workflowId, carrier: "article", state, revision: node,
+      summary: "Waiting for the agent deliverable.", deliverables: [],
+    }));
+
+    const server = createReviewHost({ dataDirectory });
+    await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const review = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+      assert.equal(review.steps[node - 1].artifacts.length, 1, `${state} should not render an empty current node`);
+      assert.equal(review.steps[node - 1].artifacts[0].kind, "agent_work_brief");
+      assert.equal(review.steps[node - 1].artifacts[0].content.stage, stage);
+      assert.equal(review.steps[node - 1].artifacts[0].content.inputs, undefined, "brief must not duplicate large upstream inputs");
+      const brief = review.steps[node - 1].artifacts[0].content;
+      assert.ok(brief.doing && brief.output && brief.check);
+      assert.equal(brief.requestedOutput, undefined, 'agent schema is not a human brief');
+      assert.equal(brief.validationRules, undefined);
+    } finally {
+      await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+    }
+  }
+});
+
+test("review host hides superseded drafts when the locked deliverable is available", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-dedupe-"));
+  const workflowId = "wf-dedupe";
+  const workspace = join(dataDirectory, "workspace", workflowId);
+  const campaignIntentDirectory = join(workspace, "02-campaign-intent");
+  await mkdir(campaignIntentDirectory, { recursive: true });
+  const draftPath = join(campaignIntentDirectory, "campaign-intent-draft.json");
+  const lockedPath = join(campaignIntentDirectory, "campaign-intent.json");
+  const sharedContent = { coreMessage: "Keep one visible version after lock.", guidanceIntent: "Review the locked intent." };
+  await writeFile(draftPath, JSON.stringify({ content: sharedContent }));
+  await writeFile(lockedPath, JSON.stringify({ content: sharedContent }));
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({
+    schemaVersion: 1,
+    workflows: {
+      [workflowId]: {
+        id: workflowId, carrier: "article", state: "BASELINE_LOCKED", revision: 4,
+        displayName: "Deduplicated workflow", rootDirectory: "/projects/dedupe",
+        summary: "Baseline locked.", updatedAt: "2026-09-05T00:00:00.000Z", events: [], context: {},
+      },
+    },
+  }));
+  await writeFile(join(workspace, "manifest.json"), JSON.stringify({
+    workflowId, carrier: "article", state: "BASELINE_LOCKED", revision: 4, summary: "Baseline locked.",
+    deliverables: [
+      { artifactId: "artifact-draft", kind: "baseline_draft", path: draftPath },
+      { artifactId: "artifact-locked", kind: "baseline", path: lockedPath },
+    ],
+  }));
+
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const review = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+    assert.deepEqual(review.steps[1].artifacts.map((artifact) => artifact.kind), ["baseline"]);
+    const storePath = join(dataDirectory, "workflows.json");
+    await writeFile(storePath, JSON.stringify({ schemaVersion: 1, workflows: { [workflowId]: {
+      id: workflowId, carrier: "article", state: "ALIGNING_BASELINE", revision: 5, summary: "用户要求修订", updatedAt: "2026-09-05T00:01:00.000Z", events: [],
+      context: { artifactRefs: [{artifactId:"artifact-locked"},{artifactId:"artifact-draft"}] },
+    } } }));
+    const revised = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+    assert.deepEqual(revised.steps[1].artifacts.map(artifact => artifact.kind), ["baseline_draft"], "a newer draft must not be hidden by an older locked version");
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host reads projected artifacts from the declared project workspace only", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-project-root-"));
+  const projectRoot = await mkdtemp(join(tmpdir(), "promo-review-project-"));
+  const workflowId = "wf-project-root";
+  const workspace = join(projectRoot, "workspace", workflowId, "04-master");
+  await mkdir(workspace, { recursive: true });
+  const masterPath = join(workspace, "master-draft.json");
+  await writeFile(masterPath, JSON.stringify({ content: { master: { bodyMarkdown: "Project workspace is a valid, reviewable projection." } } }));
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({ schemaVersion: 1, workflows: {
+    [workflowId]: { id: workflowId, carrier: "article", state: "ALIGNING_MASTER", revision: 8, rootDirectory: projectRoot, summary: "Project-root projection.", updatedAt: "2026-09-07T00:00:00.000Z", events: [] },
+  } }));
+  const reviewRoot = join(dataDirectory, "workspace", workflowId);
+  await mkdir(reviewRoot, { recursive: true });
+  await writeFile(join(reviewRoot, "manifest.json"), JSON.stringify({ workflowId, carrier: "article", rootDirectory: projectRoot, state: "ALIGNING_MASTER", revision: 8, summary: "Project-root projection.", deliverables: [
+    { artifactId: "artifact-project", kind: "content_master_draft", path: masterPath },
+    { artifactId: "artifact-outside", kind: "content_master_draft", path: join(projectRoot, "other-workflow", "master.json") },
+  ] }));
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const review = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+    assert.deepEqual(review.steps[3].artifacts.map((artifact) => artifact.artifactId), ["artifact-project"]);
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});
+
+test("review host prefers current committed artifacts when the workspace manifest is stale", async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), "promo-review-current-artifact-"));
+  const workflowId = "wf-current-artifact";
+  const workspace = join(dataDirectory, "workspace", workflowId);
+  await mkdir(join(dataDirectory, "artifacts"), { recursive: true });
+  await mkdir(workspace, { recursive: true });
+  const lockedId = "artifact_11111111-1111-4111-8111-111111111111";
+  const currentDraftId = "artifact_22222222-2222-4222-8222-222222222222";
+  await writeFile(join(dataDirectory, "artifacts", `${lockedId}.json`), JSON.stringify({ artifactId: lockedId, kind: "content_master", content: { master: { title: "旧锁定稿" } } }));
+  await writeFile(join(dataDirectory, "artifacts", `${currentDraftId}.json`), JSON.stringify({ artifactId: currentDraftId, kind: "content_master_draft", content: { master: { title: "当前草稿" } } }));
+  await writeFile(join(dataDirectory, "workflows.json"), JSON.stringify({ schemaVersion: 1, workflows: {
+    [workflowId]: {
+      id: workflowId, carrier: "article", state: "ALIGNING_MASTER", revision: 49,
+      summary: "当前草稿等待审阅。", updatedAt: "2026-09-07T00:00:00.000Z", events: [],
+      context: { artifactRefs: [{ artifactId: lockedId }, { artifactId: currentDraftId }] },
+    },
+  } }));
+  await writeFile(join(workspace, "manifest.json"), JSON.stringify({ workflowId, carrier: "article", state: "AWAITING_HUMAN_REVIEW", revision: 41, deliverables: [] }));
+
+  const server = createReviewHost({ dataDirectory });
+  await new Promise((resolveListening) => server.listen(0, "127.0.0.1", resolveListening));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const review = await (await fetch(`http://127.0.0.1:${address.port}/api/workflows/${workflowId}`)).json();
+    assert.equal(review.workflow.revision, 49);
+    assert.deepEqual(review.steps[3].artifacts.map((artifact) => artifact.artifactId), [currentDraftId]);
+    assert.equal(review.steps[3].artifacts[0].content.master.title, "当前草稿");
+  } finally {
+    await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
+  }
+});

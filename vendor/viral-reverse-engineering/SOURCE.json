@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/social-media-skills/skills",
+  "path": "skills/viral-reverse-engineering",
+  "version": "1.0.0",
+  "sha256": {
+    "SKILL.md": "b85e454b838d2bcf0119609164e7e774b5124f1f2608bf077682f4819ab497c6",
+    "references/deconstruction-framework.md": "921f49dd5a63480b39224cacc59efe8fbde24ff73437ed4dbbfae376dd7722d1",
+    "references/examples.md": "9198ffaa6f5ba505482b7ad7b2cc96343bb1d296c971c149a06f37bb62abf756",
+    "references/replicability-and-application.md": "3340a060e5eccc6754d881b1c72cd84b2f8c7b444ae7f639772e2c27b564ac15",
+    "references/sourcing-the-content.md": "49ed498f039f1aedaf3151037859b7a0328a640ac50ff72d70ebdbf8cf04113c",
+    "references/why-things-spread.md": "e07ead286087cf7067ea8065fcccc93c555d3048e7f34be59f0e0c67bdfedfbf"
+  }
+}

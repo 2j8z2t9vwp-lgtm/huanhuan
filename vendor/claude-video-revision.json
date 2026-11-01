@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/bradautomates/claude-video",
+  "revision": "03ceb42f7fa2c4439aca01752118044baabffb8f",
+  "skill": "skills/watch",
+  "version": "0.3.2",
+  "license": "MIT",
+  "integration": "Upstream frames.py through app/watch_bridge.py; workbench yt-dlp download adapter and Faster Whisper Chinese ASR retained."
+}
