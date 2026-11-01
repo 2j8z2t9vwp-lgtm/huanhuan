@@ -91,7 +91,7 @@ def main():
         try:
             deadline = time.monotonic() + 25
             while time.monotonic() < deadline:
-                if window.evaluate_js("document.querySelectorAll('#navigation [data-nav]').length >= 8"):
+                if window.evaluate_js("document.querySelectorAll('#navigation a[href]').length >= 8"):
                     break
                 time.sleep(.25)
             else:
@@ -100,6 +100,8 @@ def main():
                 window.evaluate_js('location.hash = ' + json.dumps('#' + route))
                 time.sleep(.5)
                 assert window.evaluate_js("document.querySelector('#app').innerText.length > 15"), route
+                if route != 'settings':
+                    assert window.evaluate_js("document.querySelector('#navigation a.active').getAttribute('href')") == '#' + route, route
             window.evaluate_js("location.hash = '#scripts'")
             time.sleep(.5)
             window.evaluate_js("document.querySelector('[data-action=new-script]').click()")
@@ -108,6 +110,7 @@ def main():
         except Exception:
             import traceback
             traceback.print_exc()
+            print('Native page diagnostic:', window.evaluate_js('document.body.innerText.slice(0,3000)'), flush=True)
         finally:
             window.destroy()
     try:
