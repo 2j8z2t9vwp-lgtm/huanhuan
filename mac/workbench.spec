@@ -1,5 +1,6 @@
 # Run on macOS after build_mac_app.py stages native assets and JS dependencies.
 from pathlib import Path
+import json
 from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
 
 root = Path(SPECPATH).parent
@@ -7,7 +8,9 @@ stage = root / 'build/mac-assets'
 datas = [(str(root / name), name) for name in ('static', 'vendor', 'app')]
 datas += [(str(stage / 'models'), 'models')]
 datas += [(str(root / 'THIRD_PARTY_NOTICES.md'), '.')]
-binaries = [(str(stage / 'tools' / name), 'tools') for name in ('ffmpeg', 'ffprobe', 'node')]
+# Analyze at original locations so loader-relative dylib paths still resolve.
+native_sources = json.loads((stage / 'native-sources.json').read_text('utf-8'))
+binaries = [(native_sources[name], 'tools') for name in ('ffmpeg', 'ffprobe', 'node')]
 hidden = collect_submodules('app')
 for package in ('uvicorn', 'yt_dlp', 'faster_whisper', 'ctranslate2', 'onnxruntime',
                 'playwright', 'webview', 'keyring', 'mcp', 'imageio_ffmpeg'):

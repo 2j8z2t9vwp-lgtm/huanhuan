@@ -1,5 +1,6 @@
 """Developer build, on a Mac. The recipient only receives the resulting DMG."""
 import os
+import json
 from pathlib import Path
 import platform
 import shutil
@@ -20,15 +21,20 @@ def main():
     os.chdir(ROOT)
     run(sys.executable, '-m', 'pip', 'install', '-r', 'mac/requirements-desktop.txt', 'imageio-ffmpeg', 'beautifulsoup4', 'lxml')
     # Install into the build machine only; native executables and libraries are bundled below.
-    run('brew', 'install', 'ffmpeg', 'node')
+    run('brew', 'install', 'ffmpeg')
+    if not shutil.which('node'):
+        run('brew', 'install', 'node')
     stage = ROOT / 'build/mac-assets'
     tools = stage / 'tools'
     tools.mkdir(parents=True, exist_ok=True)
+    native_sources = {}
     for name in ('ffmpeg', 'ffprobe', 'node'):
         source = shutil.which(name)
         if not source:
             raise SystemExit(f'Missing build prerequisite: {name}')
         shutil.copy2(Path(source).resolve(), tools / name)
+        native_sources[name] = str(Path(source).resolve())
+    (stage / 'native-sources.json').write_text(json.dumps(native_sources), encoding='utf-8')
     for slug in ('viralvision-mcp', 'promo-workflow-mcp'):
         folder = ROOT / 'vendor/integrations' / slug
         run('npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund', cwd=folder)
