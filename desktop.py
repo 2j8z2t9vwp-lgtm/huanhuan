@@ -87,8 +87,31 @@ def main():
     webview.settings['ALLOW_DOWNLOADS'] = True
     window = webview.create_window('欢欢工作台', url, width=1380, height=900, min_size=(900, 640))
     window.events.closed += lambda: setattr(server, 'should_exit', True)
+    def probe_window():
+        try:
+            deadline = time.monotonic() + 25
+            while time.monotonic() < deadline:
+                if window.evaluate_js("document.querySelectorAll('#navigation [data-nav]').length >= 8"):
+                    break
+                time.sleep(.25)
+            else:
+                raise RuntimeError('Native window did not initialize the workbench')
+            for route in ('home', 'studio', 'scripts', 'calendar', 'review', 'profiles', 'benchmarks', 'campaigns', 'integrations', 'settings'):
+                window.evaluate_js('location.hash = ' + json.dumps('#' + route))
+                time.sleep(.5)
+                assert window.evaluate_js("document.querySelector('#app').innerText.length > 15"), route
+            window.evaluate_js("location.hash = '#scripts'")
+            time.sleep(.5)
+            window.evaluate_js("document.querySelector('[data-action=new-script]').click()")
+            assert window.evaluate_js("!!document.querySelector('dialog[open] [name=target_subject]')")
+            (store.DATA / 'native-window-check.json').write_text(json.dumps({'ok': True, 'routes': 10, 'profile_required': False}), encoding='utf-8')
+        except Exception:
+            import traceback
+            traceback.print_exc()
+        finally:
+            window.destroy()
     try:
-        webview.start(private_mode=False, storage_path=str(store.DATA / 'webview'))
+        webview.start(probe_window if '--ui-smoke' in sys.argv else None, private_mode=False, storage_path=str(store.DATA / 'webview'))
     finally:
         server.should_exit = True
         thread.join(timeout=10)

@@ -59,6 +59,16 @@ def main():
     with tempfile.TemporaryDirectory(prefix='huanhuan-bundle-check-') as folder:
         test_env = {**os.environ, 'HUANHUAN_DATA_DIR': folder}
         run(executable, '-m', 'app.desktop_smoke', env=test_env)
+        try:
+            run(executable, '--ui-smoke', env=test_env, timeout=120)
+            result = json.loads((Path(folder) / 'native-window-check.json').read_text('utf-8'))
+            assert result['ok']
+            print('Native WKWebView window and all 10 workbench routes passed.')
+        except Exception:
+            log = Path(folder) / 'desktop.log'
+            if log.exists():
+                print(log.read_text('utf-8', errors='replace')[-16000:])
+            raise
     with tempfile.TemporaryDirectory(prefix='huanhuan-dmg-') as folder:
         staging = Path(folder)
         shutil.copytree(app, staging / app.name, symlinks=True)
