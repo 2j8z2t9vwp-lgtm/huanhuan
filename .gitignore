@@ -1,0 +1,15 @@
+.venv/
+data/
+tools/
+__pycache__/
+*.pyc
+test-results/
+node_modules/
+.env
+
+dist/
+
+build/
+.build-venv/
+
+.build-tools/
