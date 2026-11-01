@@ -17,7 +17,7 @@
 ## 兼容与数据
 
 - 代码针对 Apple 芯片和 Intel Mac 使用系统原生依赖；旧版 macOS 是否可安装还受 Homebrew 和依赖包的支持范围限制。
-- 当前交付在 Windows 上完成跨平台分支的模拟测试及现有功能回归，尚未在真实 Mac 上安装实测。不是经过签名、公证的 Mac 应用。
+- 桌面版已在 macOS 15 的 Apple 芯片 / Intel 云端环境完成构建、组件和原生窗口检查；不是经过 Developer ID 签名和 Apple 公证的应用。源码运行版仍需按本说明自行安装依赖。
 - API Key 使用 macOS 登录钥匙串中的加密密钥保护；首次保存时可能要求允许访问钥匙串。[keyring 官方说明](https://keyring.readthedocs.io/en/latest/)。不使用明文密钥回退。
 - 所有视频、脚本、数据库和日志保存在工作台文件夹的 data 目录。移动整个工作台后，需重新填写密钥，因为钥匙串条目绑定数据目录。
 - 迁移包不含当前 Windows 上的视频、脚本、Cookie、API Key 或语音模型。若要迁移旧数据，先停止两边工作台，再备份并复制 data 文件夹到 Mac；不要覆盖 Mac 已有内容。Windows 的 .dpapi 密钥文件不能跨系统解密，请在 Mac 设置里重新填写。Cookie 属于登录凭据，不要打包发给别人。
