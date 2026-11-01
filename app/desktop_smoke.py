@@ -11,7 +11,8 @@ def main():
     from app.main import app
     for name in ('ffmpeg', 'ffprobe', 'node'):
         resolved = runtime.executable(name)
-        if not resolved or not Path(resolved).resolve().is_relative_to(store.ROOT.resolve()):
+        bundle = Path(sys.executable).resolve().parents[1]
+        if not resolved or not Path(resolved).resolve().is_relative_to(bundle):
             raise RuntimeError(f'Missing bundled executable: {name}')
     creative.instructions()
     with TestClient(app) as client:
