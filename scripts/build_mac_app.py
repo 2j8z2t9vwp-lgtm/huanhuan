@@ -41,6 +41,10 @@ def main():
     download_model('base', output_dir=str(stage / 'models/whisper/base'))
     run(sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', 'mac/workbench.spec')
     app = ROOT / 'dist/欢欢工作台.app'
+    # Preserve Chromium's nested .app/framework symlinks and original structure.
+    # PyInstaller's binary rewriting/signing cannot flatten this third-party app.
+    shutil.copytree(stage / 'browsers', app / 'Contents/Resources/browsers', symlinks=True)
+    run('codesign', '--force', '--deep', '--sign', '-', app)
     executable = app / 'Contents/MacOS/欢欢工作台'
     with tempfile.TemporaryDirectory(prefix='huanhuan-bundle-check-') as folder:
         test_env = {**os.environ, 'HUANHUAN_DATA_DIR': folder}

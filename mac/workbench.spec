@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 root = Path(SPECPATH).parent
 stage = root / 'build/mac-assets'
 datas = [(str(root / name), name) for name in ('static', 'vendor', 'app')]
-datas += [(str(stage / 'browsers'), 'browsers'), (str(stage / 'models'), 'models')]
+datas += [(str(stage / 'models'), 'models')]
 datas += [(str(root / 'THIRD_PARTY_NOTICES.md'), '.')]
 binaries = [(str(stage / 'tools' / name), 'tools') for name in ('ffmpeg', 'ffprobe', 'node')]
 hidden = collect_submodules('app')

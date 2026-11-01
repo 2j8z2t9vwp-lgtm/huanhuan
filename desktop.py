@@ -11,6 +11,10 @@ def prepare():
         os.environ.setdefault('HUANHUAN_DATA_DIR', str(data))
         data.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parent
+    if getattr(sys, 'frozen', False):
+        resources = Path(sys.executable).resolve().parents[1] / 'Resources'
+        if (resources / 'browsers').exists():
+            root = resources
     if (root / 'browsers').exists():
         os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(root / 'browsers')
     # Windowed bootloaders can leave these as None, including in subprocesses.
